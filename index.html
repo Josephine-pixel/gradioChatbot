@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Website with Gulliver Chatbot Widget</title>
     <style>
-        /* Chat button */
         .chat-button {
             position: fixed;
             bottom: 20px;
@@ -21,8 +20,6 @@
             box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
             z-index: 1000;
         }
-
-        /* Chat window */
         .chat-window {
             display: none;
             position: fixed;
@@ -37,38 +34,28 @@
             z-index: 1000;
             overflow: hidden;
         }
-
-        /* Chat content */
         .chat-content {
             height: 100%;
             display: flex;
             flex-direction: column;
         }
-
-        /* Message area */
         .message-area {
             flex-grow: 1;
             overflow-y: auto;
             padding: 10px;
         }
-
-        /* Input area */
         .input-area {
             padding: 10px;
             border-top: 1px solid #ccc;
             display: flex;
             gap: 5px;
         }
-
-        /* Input field */
         .input-area input {
             flex-grow: 1;
             padding: 5px;
             border: 1px solid #ccc;
             border-radius: 5px;
         }
-
-        /* Send button */
         .input-area button {
             padding: 5px 10px;
             background-color: #007bff;
@@ -77,8 +64,6 @@
             border-radius: 5px;
             cursor: pointer;
         }
-
-        /* Close button */
         .close-button {
             position: absolute;
             top: 10px;
@@ -88,8 +73,6 @@
             font-size: 18px;
             cursor: pointer;
         }
-
-        /* Message styles */
         .message {
             margin: 5px;
             padding: 8px;
@@ -102,73 +85,71 @@
         .bot-message {
             background: #f0f0f0;
         }
+        .error-message {
+            color: red;
+            padding: 10px;
+            text-align: center;
+        }
     </style>
 </head>
 <body>
     <h1>Welcome to My Website</h1>
     <p>This is a sample website with a Gulliver chatbot widget.</p>
 
-    <!-- Chat button -->
     <button class="chat-button" onclick="toggleChat()">💬</button>
-
-    <!-- Chat window -->
     <div class="chat-window" id="chatWindow">
         <button class="close-button" onclick="toggleChat()">✖</button>
         <div class="chat-content" id="chatContent"></div>
     </div>
 
-    <!-- Load Gradio JavaScript Client from CDN -->
-    <script src="https://cdn.jsdelivr.net/npm/@gradio/client@0.10.1/dist/index.min.js"></script>
+    <script type="module">
+        import { connect } from 'https://cdn.jsdelivr.net/npm/@gradio/client@0.7.0/dist/index.min.js';
+        window.Gradio = { connect }; // Make connect available globally
+    </script>
     <script>
-        let client;
+        let client = null;
         let chatHistory = [];
+        let connectionError = null;
 
-        // Toggle chat window visibility
         function toggleChat() {
             const chatWindow = document.getElementById("chatWindow");
             chatWindow.style.display = chatWindow.style.display === "none" ? "block" : "none";
         }
 
-        // Render chat interface
         function renderChat() {
             const chatContent = document.getElementById("chatContent");
             chatContent.innerHTML = `
                 <div class="message-area">
-                    ${chatHistory.length === 0 ? "<p>No messages yet.</p>" : chatHistory.map(msg => `
+                    ${connectionError ? `<p class="error-message">${connectionError}</p>` : ""}
+                    ${chatHistory.length === 0 && !connectionError ? "<p>No messages yet.</p>" : chatHistory.map(msg => `
                         <div class="message ${msg.role === 'user' ? 'user-message' : 'bot-message'}">
                             ${msg.content}
                         </div>
                     `).join("")}
                 </div>
                 <div class="input-area">
-                    <input id="userInput" type="text" placeholder="Type your message...">
-                    <button onclick="sendMessage()">Send</button>
+                    <input id="userInput" type="text" placeholder="Type your message..." ${connectionError ? "disabled" : ""}>
+                    <button onclick="sendMessage()" ${connectionError ? "disabled" : ""}>Send</button>
                 </div>
             `;
+            console.log("Rendered chat, history:", chatHistory, "error:", connectionError);
         }
 
-        // Send message to Gradio app
         async function sendMessage() {
             const userInput = document.getElementById("userInput");
             const message = userInput.value.trim();
-            if (!message) return;
+            if (!message || !client) return;
 
-            // Add user message to history
             chatHistory.push({ role: "user", content: message });
             renderChat();
 
             try {
-                // Send message to Gradio app
-                const result = await client.predict("/chat", {
-                    message: message,
-                    history: chatHistory
+                // Use /api/predict for gr.ChatInterface
+                const result = await client.predict("/api/predict", {
+                    data: [message, chatHistory]
                 });
                 console.log("Gradio response:", result);
-
-                // Extract bot response (adjust based on your Gradio app's output)
                 const botResponse = result.data[0] || "No response from chatbot.";
-                
-                // Add bot response to history
                 chatHistory.push({ role: "bot", content: botResponse });
                 renderChat();
             } catch (error) {
@@ -180,21 +161,25 @@
             userInput.value = "";
         }
 
-        // Initialize chatbot
         async function initializeChatbot() {
             try {
-                // Replace with your Hugging Face Space URL
-                client = await Gradio.connect("https://Josephine-pixel-n8nChatBot.hf.space");
+                if (!window.Gradio) {
+                    throw new Error("Gradio client not loaded");
+                }
+                // Replace with your exact Hugging Face Space URL
+                client = await window.Gradio.connect("https://Josephine-pixel-n8nChatBot.hf.space");
                 console.log("Connected to Gradio app");
-                renderChat(); // Render initial chat interface
+                connectionError = null;
+                renderChat();
             } catch (error) {
                 console.error("Error connecting to Gradio app:", error);
-                document.getElementById("chatContent").innerHTML = "<p>Error: Could not connect to chatbot.</p>";
+                connectionError = `Error: Could not connect to chatbot (${error.message})`;
+                renderChat();
             }
         }
 
-        // Initialize on page load
         initializeChatbot();
     </script>
 </body>
 </html>
+                
